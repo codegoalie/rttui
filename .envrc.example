@@ -1,0 +1,2 @@
+export RTM_API_KEY=op://Private/remember the milk/api_key
+export RTM_SHARED_SECRET=op://Private/remember the milk/shared_secret
