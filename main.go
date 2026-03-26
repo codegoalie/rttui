@@ -37,7 +37,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	p := tea.NewProgram(ui.NewModel(tasks))
+	p := tea.NewProgram(ui.NewModel(client, token, filter, tasks))
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "tui error: %v\n", err)
 		os.Exit(1)
