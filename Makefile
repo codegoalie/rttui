@@ -1,5 +1,8 @@
 .PHONY: all
-all: init-env
+all: init-env run
+
+.PHONY: run
+run:
 	go run ./...
 
 .PHONY: init-env
