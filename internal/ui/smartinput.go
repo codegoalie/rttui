@@ -25,11 +25,11 @@ type token struct {
 }
 
 var (
-	smartTokenPriorityStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))  // red
-	smartTokenDueDateStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("10")) // green
-	smartTokenListStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("13")) // magenta
-	smartTokenTagStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("14")) // cyan
-	smartTokenRecurringStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11")) // yellow
+	smartTokenPriorityStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#f7768e")) // tokyo night red
+	smartTokenDueDateStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#9ece6a")) // tokyo night green
+	smartTokenListStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#bb9af7")) // tokyo night purple
+	smartTokenTagStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("#7dcfff")) // tokyo night cyan
+	smartTokenRecurringStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#e0af68")) // tokyo night yellow
 	smartCursorStyle         = lipgloss.NewStyle().Reverse(true)
 )
 
