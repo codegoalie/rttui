@@ -12,4 +12,7 @@ var (
 
 	searchBarStyle   = lipgloss.NewStyle().Background(lipgloss.Color("237")).Foreground(lipgloss.Color("15"))
 	searchErrorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+
+	addBarStyle   = lipgloss.NewStyle().Background(lipgloss.Color("237")).Foreground(lipgloss.Color("15"))
+	addErrorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
 )
