@@ -129,7 +129,7 @@ func EnsureAuthenticated(c *Client) (string, error) {
 
 	params := map[string]string{
 		"api_key": c.apiKey,
-		"perms":   "read",
+		"perms":   "write",
 		"frob":    frob,
 	}
 	sig := sign(c.sharedSecret, params)
