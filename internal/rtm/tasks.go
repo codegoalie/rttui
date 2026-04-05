@@ -120,24 +120,31 @@ func parseTasks(data []byte) ([]Task, error) {
 			}
 		}
 	}
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+	// bucketRank assigns a sort rank to group tasks into date buckets.
+	// Overdue (all past dates) = 0, Today = 1, future days by offset, no due date last.
+	bucketRank := func(due time.Time) int {
+		if due.IsZero() {
+			return 1<<31 - 1 // no due date goes last
+		}
+		dueDay := time.Date(due.Year(), due.Month(), due.Day(), 0, 0, 0, 0, today.Location())
+		if dueDay.Before(today) {
+			return 0 // all overdue dates collapse into one bucket
+		}
+		return int(dueDay.Sub(today).Hours()/24) + 1
+	}
+
 	sort.Slice(tasks, func(i, j int) bool {
-		di, dj := tasks[i].Due, tasks[j].Due
+		bi, bj := bucketRank(tasks[i].Due), bucketRank(tasks[j].Due)
 
-		// Tasks without a due date go to the end.
-		if di.IsZero() != dj.IsZero() {
-			return !di.IsZero()
+		// Sort by date bucket first.
+		if bi != bj {
+			return bi < bj
 		}
 
-		// Group by calendar day (oldest first).
-		if !di.IsZero() {
-			dayI := time.Date(di.Year(), di.Month(), di.Day(), 0, 0, 0, 0, di.Location())
-			dayJ := time.Date(dj.Year(), dj.Month(), dj.Day(), 0, 0, 0, 0, dj.Location())
-			if !dayI.Equal(dayJ) {
-				return dayI.Before(dayJ)
-			}
-		}
-
-		// Within the same day, sort by priority (high=1 first, none=0 last).
+		// Within the same bucket, sort by priority (high=1 first, none=0 last).
 		pi, pj := tasks[i].Priority, tasks[j].Priority
 		if pi != pj {
 			if pi == PriorityNone {
@@ -147,6 +154,12 @@ func parseTasks(data []byte) ([]Task, error) {
 				return true
 			}
 			return pi < pj
+		}
+
+		// Then by due date (oldest first) within the same priority.
+		di, dj := tasks[i].Due, tasks[j].Due
+		if !di.IsZero() && !dj.IsZero() && !di.Equal(dj) {
+			return di.Before(dj)
 		}
 
 		// Stable tiebreaker: task name, then ID.
