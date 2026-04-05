@@ -18,12 +18,13 @@ const (
 
 // Task is a single RTM task.
 type Task struct {
-	ID       string
-	Name     string
-	Due      time.Time
-	Priority Priority
-	Tags     []string
-	ListID   string
+	ID            string
+	TaskseriesID  string
+	Name          string
+	Due           time.Time
+	Priority      Priority
+	Tags          []string
+	ListID        string
 }
 
 // rtmTags handles the RTM API quirk where tags is either [] (no tags) or {"tag":[...]}
@@ -102,11 +103,12 @@ func parseTasks(data []byte) ([]Task, error) {
 					continue
 				}
 				task := Task{
-					ID:       t.ID,
-					Name:     ts.Name,
-					Priority: parsePriority(t.Priority),
-					Tags:     ts.Tags.Tag,
-					ListID:   list.ID,
+					ID:           t.ID,
+					TaskseriesID: ts.ID,
+					Name:         ts.Name,
+					Priority:     parsePriority(t.Priority),
+					Tags:         ts.Tags.Tag,
+					ListID:       list.ID,
 				}
 				if t.Due != "" {
 					if due, err := time.Parse(time.RFC3339, t.Due); err == nil {

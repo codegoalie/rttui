@@ -15,6 +15,15 @@ type fetchTimelineMsg struct {
 
 type addTaskMsg struct{ err error }
 
+type completeTaskMsg struct{ err error }
+
+func completeTaskCmd(client *rtm.Client, token, timeline string, task rtm.Task) tea.Cmd {
+	return func() tea.Msg {
+		err := client.CompleteTask(token, timeline, task.ListID, task.TaskseriesID, task.ID)
+		return completeTaskMsg{err: err}
+	}
+}
+
 func fetchTimelineCmd(client *rtm.Client, token string) tea.Cmd {
 	return func() tea.Msg {
 		id, err := client.GetTimeline(token)
@@ -26,6 +35,33 @@ func addTaskCmd(client *rtm.Client, token, timeline, raw string) tea.Cmd {
 	return func() tea.Msg {
 		transformed := transformForRTM(raw)
 		return addTaskMsg{err: client.AddTask(token, timeline, transformed)}
+	}
+}
+
+func (m Model) completeSelected() (Model, tea.Cmd) {
+	item, ok := m.list.SelectedItem().(TaskItem)
+	if !ok {
+		return m, nil
+	}
+	m.loading = true
+	if m.timelineID == "" {
+		// Need a timeline first; fetch it, then complete will be triggered after.
+		// For simplicity, get the timeline synchronously via a two-step command.
+		return m, tea.Batch(m.list.StartSpinner(), fetchTimelineAndCompleteCmd(m.client, m.token, item.task))
+	}
+	return m, tea.Batch(m.list.StartSpinner(), completeTaskCmd(m.client, m.token, m.timelineID, item.task))
+}
+
+type fetchTimelineAndCompleteMsg struct {
+	timelineID string
+	task       rtm.Task
+	err        error
+}
+
+func fetchTimelineAndCompleteCmd(client *rtm.Client, token string, task rtm.Task) tea.Cmd {
+	return func() tea.Msg {
+		id, err := client.GetTimeline(token)
+		return fetchTimelineAndCompleteMsg{timelineID: id, task: task, err: err}
 	}
 }
 

@@ -51,12 +51,14 @@ func NewModel(client *rtm.Client, token, filter string, tasks []rtm.Task) Model 
 		return []key.Binding{
 			key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 			key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "add task")),
+			key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "complete")),
 		}
 	}
 	l.AdditionalFullHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search tasks")),
 			key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "add task")),
+			key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "complete task")),
 		}
 	}
 
@@ -99,7 +101,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case fetchTimelineAndCompleteMsg:
+		if msg.err != nil {
+			m.loading = false
+			m.list.StopSpinner()
+			m.addErr = msg.err
+			return m, nil
+		}
+		m.timelineID = msg.timelineID
+		return m, completeTaskCmd(m.client, m.token, m.timelineID, msg.task)
+
 	case addTaskMsg:
+		m.loading = false
+		m.list.StopSpinner()
+		if msg.err != nil {
+			m.addErr = msg.err
+			return m, nil
+		}
+		return m, tea.Batch(m.list.StartSpinner(), fetchTasksCmd(m.client, m.token, m.currentFilter))
+
+	case completeTaskMsg:
 		m.loading = false
 		m.list.StopSpinner()
 		if msg.err != nil {
@@ -144,6 +165,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.openSearch()
 		case "n":
 			return m.openAdd()
+		case "x":
+			return m.completeSelected()
 		}
 	}
 
