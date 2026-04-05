@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"fmt"
+	"image/color"
 	"time"
 
 	"charm.land/bubbles/v2/list"
@@ -18,44 +18,37 @@ func (t TaskItem) Title() string {
 	return t.task.Name
 }
 
-// Description returns a styled one-liner with priority and due date.
-func (t TaskItem) Description() string {
-	pri := priorityLabel(t.task.Priority)
-	due := dueLabel(t.task.Due)
-	if due == "" {
-		return pri
-	}
-	return fmt.Sprintf("%s  %s", pri, due)
-}
+// Description is unused but required by the list.Item interface.
+func (t TaskItem) Description() string { return "" }
 
 // FilterValue is used by the list's built-in fuzzy filter.
 func (t TaskItem) FilterValue() string {
 	return t.task.Name
 }
 
-func priorityLabel(p rtm.Priority) string {
+// priorityColor returns the color for the priority bar.
+func priorityColor(p rtm.Priority) color.Color {
 	switch p {
 	case rtm.PriorityHigh:
-		return priorityHighStyle.Render("[P1]")
+		return priorityHighColor
 	case rtm.PriorityMedium:
-		return priorityMedStyle.Render("[P2]")
+		return priorityMedColor
 	case rtm.PriorityLow:
-		return priorityLowStyle.Render("[P3]")
+		return priorityLowColor
 	default:
-		return priorityNoneStyle.Render("[--]")
+		return priorityNoneColor
 	}
 }
 
-func dueLabel(due time.Time) string {
+// isOverdue returns true if the due date is strictly before today.
+func isOverdue(due time.Time) bool {
 	if due.IsZero() {
-		return ""
+		return false
 	}
 	now := time.Now()
-	label := "Due: " + due.Format("Jan 2")
-	if due.Before(now) || sameDay(due, now) {
-		return dueSoonStyle.Render(label)
-	}
-	return dueStyle.Render(label)
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	dueDay := time.Date(due.Year(), due.Month(), due.Day(), 0, 0, 0, 0, today.Location())
+	return dueDay.Before(today)
 }
 
 func sameDay(a, b time.Time) bool {
@@ -79,8 +72,11 @@ func dayLabel(due time.Time, now time.Time) string {
 		return "No Due Date"
 	}
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	dueDay := time.Date(due.Year(), due.Month(), due.Day(), 0, 0, 0, 0, due.Location())
-	if dueDay.Before(today) || dueDay.Equal(today) {
+	dueDay := time.Date(due.Year(), due.Month(), due.Day(), 0, 0, 0, 0, today.Location())
+	if dueDay.Before(today) {
+		return "Overdue"
+	}
+	if dueDay.Equal(today) {
 		return "Today"
 	}
 	tomorrow := today.AddDate(0, 0, 1)
