@@ -3,6 +3,7 @@ package rtm
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -119,6 +120,42 @@ func parseTasks(data []byte) ([]Task, error) {
 			}
 		}
 	}
+	sort.Slice(tasks, func(i, j int) bool {
+		di, dj := tasks[i].Due, tasks[j].Due
+
+		// Tasks without a due date go to the end.
+		if di.IsZero() != dj.IsZero() {
+			return !di.IsZero()
+		}
+
+		// Group by calendar day (oldest first).
+		if !di.IsZero() {
+			dayI := time.Date(di.Year(), di.Month(), di.Day(), 0, 0, 0, 0, di.Location())
+			dayJ := time.Date(dj.Year(), dj.Month(), dj.Day(), 0, 0, 0, 0, dj.Location())
+			if !dayI.Equal(dayJ) {
+				return dayI.Before(dayJ)
+			}
+		}
+
+		// Within the same day, sort by priority (high=1 first, none=0 last).
+		pi, pj := tasks[i].Priority, tasks[j].Priority
+		if pi != pj {
+			if pi == PriorityNone {
+				return false
+			}
+			if pj == PriorityNone {
+				return true
+			}
+			return pi < pj
+		}
+
+		// Stable tiebreaker: task name, then ID.
+		if tasks[i].Name != tasks[j].Name {
+			return tasks[i].Name < tasks[j].Name
+		}
+		return tasks[i].ID < tasks[j].ID
+	})
+
 	return tasks, nil
 }
 

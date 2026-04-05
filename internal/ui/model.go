@@ -38,12 +38,9 @@ type Model struct {
 
 // NewModel creates a Model pre-loaded with tasks.
 func NewModel(client *rtm.Client, token, filter string, tasks []rtm.Task) Model {
-	items := make([]list.Item, len(tasks))
-	for i, t := range tasks {
-		items[i] = TaskItem{task: t}
-	}
+	items := buildItems(tasks)
 
-	delegate := list.NewDefaultDelegate()
+	delegate := newTaskDelegate()
 	l := list.New(items, delegate, 0, 0)
 	l.Title = "Remember The Milk"
 	l.SetFilteringEnabled(false)
@@ -136,10 +133,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.searchErr = msg.err
 			return m, nil
 		}
-		items := make([]list.Item, len(msg.tasks))
-		for i, t := range msg.tasks {
-			items[i] = TaskItem{task: t}
-		}
+		items := buildItems(msg.tasks)
 		cmd := m.list.SetItems(items)
 		return m, cmd
 

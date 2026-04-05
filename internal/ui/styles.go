@@ -15,4 +15,8 @@ var (
 
 	addBarStyle   = lipgloss.NewStyle().Background(lipgloss.Color("#292e42")).Foreground(lipgloss.Color("#c0caf5"))
 	addErrorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#f7768e"))
+
+	headingStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#7aa2f7")). // tokyo night blue
+			Bold(true)
 )
