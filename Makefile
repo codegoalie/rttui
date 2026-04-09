@@ -9,7 +9,6 @@ run:
 init-env:
 	op inject -i .envrc.example -o .envrc
 
-
 .PHONY: clean
 clean:
 	rm rttui
@@ -17,3 +16,7 @@ clean:
 .PHONY: test
 test:
 	go test ./...
+
+.PHONY: build
+build:
+	go build -o rttui
