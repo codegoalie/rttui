@@ -37,7 +37,7 @@ func (m Model) openSearch() (Model, tea.Cmd) {
 	m.searchInput.SetValue(m.currentFilter)
 	m.searchInput.CursorEnd()
 	cmd := m.searchInput.Focus()
-	m.list.SetSize(m.windowWidth, m.windowHeight-searchBarHeight)
+	m.list.SetSize(m.windowWidth, m.windowHeight-footerBarHeight)
 	return m, cmd
 }
 

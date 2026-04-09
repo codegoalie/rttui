@@ -69,7 +69,7 @@ func (m Model) openAdd() (Model, tea.Cmd) {
 	m.adding = true
 	m.addErr = nil
 	m.addInput.SetValue("")
-	m.list.SetSize(m.windowWidth, m.windowHeight-addBarHeight)
+	m.list.SetSize(m.windowWidth, m.windowHeight-footerBarHeight)
 	if m.timelineID == "" {
 		return m, fetchTimelineCmd(m.client, m.token)
 	}

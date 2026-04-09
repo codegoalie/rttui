@@ -10,8 +10,7 @@ import (
 	"git.codegoalie.com/rttui.git/internal/rtm"
 )
 
-const searchBarHeight = 1
-const addBarHeight = 1
+const footerBarHeight = 1
 
 // Model is the bubbletea application model.
 type Model struct {
@@ -69,6 +68,14 @@ func NewModel(client *rtm.Client, token, filter string, tasks []rtm.Task) Model 
 	}
 }
 
+// footerHeight returns the number of rows the footer bar occupies given current state.
+func (m Model) footerHeight() int {
+	if m.searching || m.adding || m.searchErr != nil || m.addErr != nil {
+		return footerBarHeight
+	}
+	return 0
+}
+
 // Init satisfies tea.Model; data is pre-loaded so no commands needed.
 func (m Model) Init() tea.Cmd {
 	return nil
@@ -80,19 +87,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.windowWidth = msg.Width
 		m.windowHeight = msg.Height
-		if m.searching {
-			m.list.SetSize(msg.Width, msg.Height-searchBarHeight)
-		} else if m.adding {
-			m.list.SetSize(msg.Width, msg.Height-addBarHeight)
-		} else {
-			m.list.SetSize(msg.Width, msg.Height)
-		}
+		m.list.SetSize(msg.Width, msg.Height-m.footerHeight())
 		return m, nil
 
 	case fetchTimelineMsg:
 		if msg.err != nil {
 			m = m.closeAdd()
 			m.addErr = msg.err // set after closeAdd so it isn't cleared
+			m.list.SetSize(m.windowWidth, m.windowHeight-m.footerHeight())
 		} else {
 			m.timelineID = msg.id
 		}
@@ -103,6 +105,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loading = false
 			m.list.StopSpinner()
 			m.addErr = msg.err
+			m.list.SetSize(m.windowWidth, m.windowHeight-m.footerHeight())
 			return m, nil
 		}
 		m.timelineID = msg.timelineID
@@ -113,6 +116,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.list.StopSpinner()
 		if msg.err != nil {
 			m.addErr = msg.err
+			m.list.SetSize(m.windowWidth, m.windowHeight-m.footerHeight())
 			return m, nil
 		}
 		return m, tea.Batch(m.list.StartSpinner(), fetchTasksCmd(m.client, m.token, m.currentFilter))
@@ -122,6 +126,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.list.StopSpinner()
 		if msg.err != nil {
 			m.addErr = msg.err
+			m.list.SetSize(m.windowWidth, m.windowHeight-m.footerHeight())
 			return m, nil
 		}
 		return m, tea.Batch(m.list.StartSpinner(), fetchTasksCmd(m.client, m.token, m.currentFilter))
@@ -131,6 +136,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.list.StopSpinner()
 		if msg.err != nil {
 			m.searchErr = msg.err
+			m.list.SetSize(m.windowWidth, m.windowHeight-m.footerHeight())
 			return m, nil
 		}
 		items := buildItems(msg.tasks)
@@ -173,29 +179,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) View() tea.View {
 	listView := m.list.View()
 
+	var content string
 	if m.searchErr != nil {
 		errBar := searchErrorStyle.Render("Error: " + m.searchErr.Error() + "  (press / to retry)")
-		return tea.NewView(lipgloss.JoinVertical(lipgloss.Left, listView, errBar))
-	}
-
-	if m.addErr != nil {
+		content = lipgloss.JoinVertical(lipgloss.Left, listView, errBar)
+	} else if m.addErr != nil {
 		errBar := addErrorStyle.Render("Add failed: " + m.addErr.Error() + "  (press n to retry)")
-		return tea.NewView(lipgloss.JoinVertical(lipgloss.Left, listView, errBar))
-	}
-
-	if m.adding {
+		content = lipgloss.JoinVertical(lipgloss.Left, listView, errBar)
+	} else if m.adding {
 		bar := addBarStyle.Render(m.addInput.View())
-		return tea.NewView(lipgloss.JoinVertical(lipgloss.Left, listView, bar))
-	}
-
-	if m.searching {
+		content = lipgloss.JoinVertical(lipgloss.Left, listView, bar)
+	} else if m.searching {
 		label := " INSERT "
 		if m.searchMode == modeNormal {
 			label = " NORMAL "
 		}
 		bar := searchBarStyle.Render(label + m.searchInput.View())
-		return tea.NewView(lipgloss.JoinVertical(lipgloss.Left, listView, bar))
+		content = lipgloss.JoinVertical(lipgloss.Left, listView, bar)
+	} else {
+		content = listView
 	}
 
-	return tea.NewView(listView)
+	v := tea.NewView(content)
+	v.AltScreen = true
+	return v
 }

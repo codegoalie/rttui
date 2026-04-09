@@ -23,7 +23,7 @@ func newTaskDelegate() taskDelegate {
 
 func (d taskDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
 	if h, ok := item.(HeadingItem); ok {
-		fmt.Fprintf(w, "\n%s", headingStyle.Render("── "+h.label+" ──"))
+		fmt.Fprint(w, headingStyle.Render("── "+h.label+" ──"))
 		return
 	}
 
