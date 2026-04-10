@@ -46,13 +46,29 @@ export RTM_SHARED_SECRET=<your shared secret>
 
 On first run, rttui will print an authorization URL. Open it in your browser, grant access, then press Enter. The token is saved to `$XDG_CONFIG_HOME/rttui/token` (typically `~/.config/rttui/token`) and reused on subsequent runs.
 
+## Configuration
+
+rttui reads an optional config file at `$XDG_CONFIG_HOME/rttui/config.json` (typically `~/.config/rttui/config.json`). All fields are optional.
+
+```json
+{
+  "default_filter": "list:Inbox",
+  "add_preset": "list:Chores"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `default_filter` | RTM filter applied on startup when no CLI argument is given |
+| `add_preset` | Text pre-filled in the add bar when pressing `n`; cursor is placed after it so you can type the task name immediately. Backspace to remove it. |
+
 ## Usage
 
 ```
 ./rttui [filter]
 ```
 
-Pass an optional RTM filter string as an argument to pre-filter the task list on startup. Uses the same syntax as RTM's advanced search (e.g. `"list:Work AND priority:1"`).
+Pass an optional RTM filter string as an argument to pre-filter the task list on startup. This overrides `default_filter` from the config file. Uses the same syntax as RTM's advanced search (e.g. `"list:Work AND priority:1"`).
 
 ### Keybindings
 
