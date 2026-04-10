@@ -48,14 +48,14 @@ func NewModel(client *rtm.Client, token, filter, addPreset string, tasks []rtm.T
 		return []key.Binding{
 			key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 			key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "add task")),
-			key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "complete")),
+			key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "complete")),
 		}
 	}
 	l.AdditionalFullHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search tasks")),
 			key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "add task")),
-			key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "complete task")),
+			key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "complete task")),
 		}
 	}
 
@@ -167,7 +167,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.openSearch()
 		case "n":
 			return m.openAdd()
-		case "x":
+		case "c":
 			return m.completeSelected()
 		}
 	}
