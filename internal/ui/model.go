@@ -29,6 +29,7 @@ type Model struct {
 
 	adding     bool
 	addInput   SmartInput
+	addPreset  string
 	addErr     error
 	timelineID string
 
@@ -36,7 +37,7 @@ type Model struct {
 }
 
 // NewModel creates a Model pre-loaded with tasks.
-func NewModel(client *rtm.Client, token, filter string, tasks []rtm.Task) Model {
+func NewModel(client *rtm.Client, token, filter, addPreset string, tasks []rtm.Task) Model {
 	items := buildItems(tasks)
 
 	delegate := newTaskDelegate()
@@ -62,6 +63,7 @@ func NewModel(client *rtm.Client, token, filter string, tasks []rtm.Task) Model 
 		client:        client,
 		token:         token,
 		currentFilter: filter,
+		addPreset:     addPreset,
 		list:          l,
 		searchInput:   newSearchInput(),
 		addInput:      NewSmartInput("Add: "),
