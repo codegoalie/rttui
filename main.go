@@ -6,21 +6,28 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"git.codegoalie.com/rttui.git/internal/config"
 	"git.codegoalie.com/rttui.git/internal/rtm"
 	"git.codegoalie.com/rttui.git/internal/ui"
 )
 
 func main() {
-	filter := ""
-	if len(os.Args) > 1 {
-		filter = os.Args[1]
-	}
-
 	apiKey := os.Getenv("RTM_API_KEY")
 	secret := os.Getenv("RTM_SHARED_SECRET")
 	if apiKey == "" || secret == "" {
 		fmt.Fprintln(os.Stderr, "RTM_API_KEY and RTM_SHARED_SECRET must be set")
 		os.Exit(1)
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "config error: %v\n", err)
+		os.Exit(1)
+	}
+
+	filter := cfg.DefaultFilter
+	if len(os.Args) > 1 {
+		filter = os.Args[1]
 	}
 
 	client := rtm.NewClient(apiKey, secret)
@@ -37,7 +44,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	p := tea.NewProgram(ui.NewModel(client, token, filter, tasks))
+	p := tea.NewProgram(ui.NewModel(client, token, filter, cfg.AddPreset, tasks))
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "tui error: %v\n", err)
 		os.Exit(1)
