@@ -77,7 +77,8 @@ Pass an optional RTM filter string as an argument to pre-filter the task list on
 | `j` / `k` or arrow keys | Move up/down |
 | `/` | Open search bar |
 | `n` | Add a new task |
-| `x` | Complete selected task |
+| `c` | Complete selected task |
+| `r` | Refresh tasks from server |
 | `q` / `ctrl+c` | Quit |
 
 ### Search bar
