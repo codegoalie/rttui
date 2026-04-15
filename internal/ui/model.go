@@ -35,6 +35,9 @@ type Model struct {
 	addErr     error
 	timelineID string
 
+	completeErr     error
+	pendingCompletes map[string]rtm.Task
+
 	loading         bool
 	refreshInterval time.Duration
 }
@@ -78,10 +81,17 @@ func NewModel(client *rtm.Client, token, filter, addPreset string, refreshInterv
 
 // footerHeight returns the number of rows the footer bar occupies given current state.
 func (m Model) footerHeight() int {
-	if m.searching || m.adding || m.searchErr != nil || m.addErr != nil {
+	if m.searching || m.adding || m.searchErr != nil || m.addErr != nil || m.completeErr != nil {
 		return footerBarHeight
 	}
 	return 0
+}
+
+// stopSpinnerIfIdle stops the spinner when no loading or pending completions remain.
+func (m *Model) stopSpinnerIfIdle() {
+	if !m.loading && len(m.pendingCompletes) == 0 {
+		m.list.StopSpinner()
+	}
 }
 
 // Init satisfies tea.Model; schedules the first auto-refresh tick if configured.
@@ -113,11 +123,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case fetchTimelineAndCompleteMsg:
 		if msg.err != nil {
-			m.loading = false
-			m.list.StopSpinner()
-			m.addErr = msg.err
+			key := taskKey(msg.task)
+			delete(m.pendingCompletes, key)
+			m.completeErr = msg.err
+			setCmd := m.list.SetItems(m.restoreTaskItems(msg.task))
 			m.list.SetSize(m.windowWidth, m.windowHeight-m.footerHeight())
-			return m, nil
+			m.stopSpinnerIfIdle()
+			return m, setCmd
 		}
 		m.timelineID = msg.timelineID
 		return m, completeTaskCmd(m.client, m.token, m.timelineID, msg.task)
@@ -133,26 +145,39 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.list.StartSpinner(), fetchTasksCmd(m.client, m.token, m.currentFilter))
 
 	case completeTaskMsg:
-		m.loading = false
-		m.list.StopSpinner()
+		key := taskKey(msg.task)
+		delete(m.pendingCompletes, key)
 		if msg.err != nil {
-			m.addErr = msg.err
+			m.completeErr = msg.err
+			setCmd := m.list.SetItems(m.restoreTaskItems(msg.task))
 			m.list.SetSize(m.windowWidth, m.windowHeight-m.footerHeight())
-			return m, nil
+			m.stopSpinnerIfIdle()
+			return m, setCmd
 		}
-		return m, tea.Batch(m.list.StartSpinner(), fetchTasksCmd(m.client, m.token, m.currentFilter))
+		m.stopSpinnerIfIdle()
+		return m, nil
 
 	case fetchTasksMsg:
 		m.loading = false
-		m.list.StopSpinner()
 		if msg.err != nil {
 			m.searchErr = msg.err
 			m.list.SetSize(m.windowWidth, m.windowHeight-m.footerHeight())
+			m.stopSpinnerIfIdle()
 			return m, nil
 		}
-		items := buildItems(msg.tasks)
-		cmd := m.list.SetItems(items)
-		return m, cmd
+		tasks := msg.tasks
+		if len(m.pendingCompletes) > 0 {
+			filtered := tasks[:0:0]
+			for _, t := range tasks {
+				if _, pending := m.pendingCompletes[taskKey(t)]; !pending {
+					filtered = append(filtered, t)
+				}
+			}
+			tasks = filtered
+		}
+		setCmd := m.list.SetItems(buildItems(tasks))
+		m.stopSpinnerIfIdle()
+		return m, setCmd
 
 	case autoRefreshMsg:
 		cmds := []tea.Cmd{autoRefreshCmd(m.refreshInterval)}
@@ -161,6 +186,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.list.StartSpinner(), fetchTasksCmd(m.client, m.token, m.currentFilter))
 		}
 		return m, tea.Batch(cmds...)
+
 
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {
@@ -204,6 +230,9 @@ func (m Model) View() tea.View {
 	var content string
 	if m.searchErr != nil {
 		errBar := searchErrorStyle.Render("Error: " + m.searchErr.Error() + "  (press / to retry)")
+		content = lipgloss.JoinVertical(lipgloss.Left, listView, errBar)
+	} else if m.completeErr != nil {
+		errBar := addErrorStyle.Render("Complete failed: " + m.completeErr.Error() + "  (press c to retry)")
 		content = lipgloss.JoinVertical(lipgloss.Left, listView, errBar)
 	} else if m.addErr != nil {
 		errBar := addErrorStyle.Render("Add failed: " + m.addErr.Error() + "  (press n to retry)")

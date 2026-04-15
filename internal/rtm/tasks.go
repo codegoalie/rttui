@@ -120,6 +120,13 @@ func parseTasks(data []byte) ([]Task, error) {
 			}
 		}
 	}
+	SortTasks(tasks)
+	return tasks, nil
+}
+
+// SortTasks sorts tasks in place using the standard display order:
+// bucket (overdue, today, day-by-day, no due date) → priority → due → name → ID.
+func SortTasks(tasks []Task) {
 	now := time.Now()
 	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
@@ -168,8 +175,6 @@ func parseTasks(data []byte) ([]Task, error) {
 		}
 		return tasks[i].ID < tasks[j].ID
 	})
-
-	return tasks, nil
 }
 
 // GetTasks fetches tasks matching the given filter for the authenticated user.
