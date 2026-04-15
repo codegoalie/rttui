@@ -173,7 +173,8 @@ func (m Model) openAdd() (Model, tea.Cmd) {
 	m.addErr = nil
 	m.completeErr = nil
 	if m.addPreset != "" {
-		m.addInput.SetValue(m.addPreset + " ")
+		m.addInput.SetValue(" " + m.addPreset)
+		m.addInput.CursorStart()
 	} else {
 		m.addInput.SetValue("")
 	}

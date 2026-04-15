@@ -139,6 +139,11 @@ func (s *SmartInput) CursorEnd() {
 	s.cursor = len(s.value)
 }
 
+// CursorStart moves the cursor to the start of the input.
+func (s *SmartInput) CursorStart() {
+	s.cursor = 0
+}
+
 // View renders the input with syntax highlighting and a block cursor.
 func (s SmartInput) View() string {
 	toks := tokenize(s.value)
