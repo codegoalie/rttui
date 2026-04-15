@@ -22,7 +22,7 @@ Requires `RTM_API_KEY` and `RTM_SHARED_SECRET` env vars. Secrets are managed via
 
 ## Conventions
 
-- Go module: `git.codegoalie.com/rttui.git`
+- Go module: `git.codegoalie.com/rttui`
 - Use Bubble Tea v2 (`charm.land/bubbletea/v2`) and Bubbles v2 (`charm.land/bubbles/v2`).
 
 ## Important details

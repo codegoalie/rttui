@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"charm.land/bubbles/v2/list"
-	"git.codegoalie.com/rttui.git/internal/rtm"
+	"git.codegoalie.com/rttui/internal/rtm"
 )
 
 // TaskItem wraps an rtm.Task for use in the bubbles list.

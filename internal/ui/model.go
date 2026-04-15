@@ -9,7 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
-	"git.codegoalie.com/rttui.git/internal/rtm"
+	"git.codegoalie.com/rttui/internal/rtm"
 )
 
 const footerBarHeight = 1

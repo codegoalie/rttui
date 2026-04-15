@@ -6,7 +6,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
-	"git.codegoalie.com/rttui.git/internal/rtm"
+	"git.codegoalie.com/rttui/internal/rtm"
 )
 
 type vimMode int

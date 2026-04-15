@@ -7,9 +7,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
-	"git.codegoalie.com/rttui.git/internal/config"
-	"git.codegoalie.com/rttui.git/internal/rtm"
-	"git.codegoalie.com/rttui.git/internal/ui"
+	"git.codegoalie.com/rttui/internal/config"
+	"git.codegoalie.com/rttui/internal/rtm"
+	"git.codegoalie.com/rttui/internal/ui"
 )
 
 func main() {
