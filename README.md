@@ -53,7 +53,8 @@ rttui reads an optional config file at `$XDG_CONFIG_HOME/rttui/config.json` (typ
 ```json
 {
   "default_filter": "list:Inbox",
-  "add_preset": "list:Chores"
+  "add_preset": "list:Chores",
+  "refresh_interval_secs": 120
 }
 ```
 
@@ -61,6 +62,7 @@ rttui reads an optional config file at `$XDG_CONFIG_HOME/rttui/config.json` (typ
 |-------|-------------|
 | `default_filter` | RTM filter applied on startup when no CLI argument is given |
 | `add_preset` | Text pre-filled in the add bar when pressing `n`; cursor is placed after it so you can type the task name immediately. Backspace to remove it. |
+| `refresh_interval_secs` | How often (in seconds) tasks are automatically refreshed from the server. Defaults to `60`. Set to a negative value to disable auto-refresh. |
 
 ## Usage
 

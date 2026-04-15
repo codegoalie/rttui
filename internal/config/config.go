@@ -9,8 +9,12 @@ import (
 
 // Config holds application configuration loaded from $XDG_CONFIG_HOME/rttui/config.json.
 type Config struct {
-	DefaultFilter string `json:"default_filter"`
-	AddPreset     string `json:"add_preset"`
+	DefaultFilter      string `json:"default_filter"`
+	AddPreset          string `json:"add_preset"`
+	// RefreshIntervalSecs controls how often tasks are automatically refreshed from the
+	// server. 0 (or omitted) uses the default of 60 seconds. Negative values disable
+	// auto-refresh entirely.
+	RefreshIntervalSecs int `json:"refresh_interval_secs"`
 }
 
 // Load reads config from disk. Returns empty defaults if the file doesn't exist.

@@ -2,11 +2,21 @@ package ui
 
 import (
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"git.codegoalie.com/rttui.git/internal/rtm"
 )
+
+type autoRefreshMsg struct{}
+
+func autoRefreshCmd(d time.Duration) tea.Cmd {
+	return func() tea.Msg {
+		time.Sleep(d)
+		return autoRefreshMsg{}
+	}
+}
 
 type fetchTimelineMsg struct {
 	id  string

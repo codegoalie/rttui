@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"time"
+
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/textinput"
@@ -33,11 +35,12 @@ type Model struct {
 	addErr     error
 	timelineID string
 
-	loading bool
+	loading         bool
+	refreshInterval time.Duration
 }
 
 // NewModel creates a Model pre-loaded with tasks.
-func NewModel(client *rtm.Client, token, filter, addPreset string, tasks []rtm.Task) Model {
+func NewModel(client *rtm.Client, token, filter, addPreset string, refreshInterval time.Duration, tasks []rtm.Task) Model {
 	items := buildItems(tasks)
 
 	delegate := newTaskDelegate()
@@ -62,13 +65,14 @@ func NewModel(client *rtm.Client, token, filter, addPreset string, tasks []rtm.T
 	}
 
 	return Model{
-		client:        client,
-		token:         token,
-		currentFilter: filter,
-		addPreset:     addPreset,
-		list:          l,
-		searchInput:   newSearchInput(),
-		addInput:      NewSmartInput("Add: "),
+		client:          client,
+		token:           token,
+		currentFilter:   filter,
+		addPreset:       addPreset,
+		refreshInterval: refreshInterval,
+		list:            l,
+		searchInput:     newSearchInput(),
+		addInput:        NewSmartInput("Add: "),
 	}
 }
 
@@ -80,8 +84,11 @@ func (m Model) footerHeight() int {
 	return 0
 }
 
-// Init satisfies tea.Model; data is pre-loaded so no commands needed.
+// Init satisfies tea.Model; schedules the first auto-refresh tick if configured.
 func (m Model) Init() tea.Cmd {
+	if m.refreshInterval > 0 {
+		return autoRefreshCmd(m.refreshInterval)
+	}
 	return nil
 }
 
@@ -146,6 +153,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		items := buildItems(msg.tasks)
 		cmd := m.list.SetItems(items)
 		return m, cmd
+
+	case autoRefreshMsg:
+		cmds := []tea.Cmd{autoRefreshCmd(m.refreshInterval)}
+		if !m.loading {
+			m.loading = true
+			cmds = append(cmds, m.list.StartSpinner(), fetchTasksCmd(m.client, m.token, m.currentFilter))
+		}
+		return m, tea.Batch(cmds...)
 
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {

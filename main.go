@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -44,7 +45,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	p := tea.NewProgram(ui.NewModel(client, token, filter, cfg.AddPreset, tasks))
+	refreshInterval := time.Duration(cfg.RefreshIntervalSecs) * time.Second
+	if cfg.RefreshIntervalSecs == 0 {
+		refreshInterval = 60 * time.Second
+	}
+
+	p := tea.NewProgram(ui.NewModel(client, token, filter, cfg.AddPreset, refreshInterval, tasks))
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "tui error: %v\n", err)
 		os.Exit(1)
