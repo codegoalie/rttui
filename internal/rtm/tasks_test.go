@@ -16,6 +16,7 @@ const fixtureJSON = `{
             {
               "id": "ts-1",
               "name": "Buy milk",
+              "url": "https://example.com/milk",
               "tags": { "tag": ["grocery", "errand"] },
               "task": [
                 {
@@ -89,6 +90,9 @@ func TestParseTasks(t *testing.T) {
 	if len(milk.Tags) != 2 || milk.Tags[0] != "grocery" {
 		t.Errorf("task[0].Tags = %v, want [grocery errand]", milk.Tags)
 	}
+	if milk.URL != "https://example.com/milk" {
+		t.Errorf("task[0].URL = %q, want %q", milk.URL, "https://example.com/milk")
+	}
 
 	// Second task: Read book (no due, low priority)
 	book := tasks[1]
@@ -100,5 +104,8 @@ func TestParseTasks(t *testing.T) {
 	}
 	if !book.Due.IsZero() {
 		t.Errorf("task[1].Due = %v, want zero", book.Due)
+	}
+	if book.URL != "" {
+		t.Errorf("task[1].URL = %q, want empty", book.URL)
 	}
 }

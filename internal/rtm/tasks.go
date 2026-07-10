@@ -19,13 +19,14 @@ const (
 
 // Task is a single RTM task.
 type Task struct {
-	ID            string
-	TaskseriesID  string
-	Name          string
-	Due           time.Time
-	Priority      Priority
-	Tags          []string
-	ListID        string
+	ID           string
+	TaskseriesID string
+	Name         string
+	URL          string
+	Due          time.Time
+	Priority     Priority
+	Tags         []string
+	ListID       string
 }
 
 // rtmTags handles the RTM API quirk where tags is either [] (no tags) or {"tag":[...]}
@@ -57,8 +58,9 @@ type rtmResponse struct {
 			List []struct {
 				ID         string `json:"id"`
 				Taskseries []struct {
-					ID   string `json:"id"`
-					Name string `json:"name"`
+					ID   string  `json:"id"`
+					Name string  `json:"name"`
+					URL  string  `json:"url"`
 					Tags rtmTags `json:"tags"`
 					Task []struct {
 						ID        string `json:"id"`
@@ -107,6 +109,7 @@ func parseTasks(data []byte) ([]Task, error) {
 					ID:           t.ID,
 					TaskseriesID: ts.ID,
 					Name:         ts.Name,
+					URL:          ts.URL,
 					Priority:     parsePriority(t.Priority),
 					Tags:         ts.Tags.Tag,
 					ListID:       list.ID,
