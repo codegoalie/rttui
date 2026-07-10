@@ -46,20 +46,24 @@ func (d taskDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 	bar := lipgloss.NewStyle().Foreground(barColor).Render("▎")
 
 	// Apply selection styling.
+	titleStyle := lipgloss.NewStyle()
 	if selected {
-		title = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#c0caf5")).
-			Bold(true).
-			Render(title)
+		titleStyle = titleStyle.Foreground(lipgloss.Color("#c0caf5")).Bold(true)
+	} else {
+		titleStyle = titleStyle.Foreground(lipgloss.Color("#a9b1d6"))
+	}
+	if t.task.URL != "" {
+		titleStyle = titleStyle.Hyperlink(t.task.URL).Underline(true)
+	}
+	title = titleStyle.Render(title)
+
+	if selected {
 		line := fmt.Sprintf("%s %s", bar, title)
 		fmt.Fprint(w, lipgloss.NewStyle().
 			Background(lipgloss.Color("#292e42")).
 			Width(m.Width()).
 			Render(line))
 	} else {
-		title = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#a9b1d6")).
-			Render(title)
 		fmt.Fprintf(w, "%s %s", bar, title)
 	}
 }
