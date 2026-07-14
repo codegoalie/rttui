@@ -35,12 +35,6 @@ func (d taskDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 
 	selected := index == m.Index()
 
-	// Build the task name with optional overdue date.
-	title := t.task.Name
-	if isOverdue(t.task.Due) {
-		title += " " + overdueStyle.Render(fmt.Sprintf("[%s]", t.task.Due.Format("Jan 2")))
-	}
-
 	// Priority color bar.
 	barColor := priorityColor(t.task.Priority)
 	bar := lipgloss.NewStyle().Foreground(barColor).Render("▎")
@@ -55,7 +49,14 @@ func (d taskDelegate) Render(w io.Writer, m list.Model, index int, item list.Ite
 	if t.task.URL != "" {
 		titleStyle = titleStyle.Hyperlink(t.task.URL).Underline(true)
 	}
-	title = titleStyle.Render(title)
+
+	// Style the name first; append the overdue badge afterward so its own
+	// ANSI codes aren't re-wrapped (and corrupted) by titleStyle's rune-by-rune
+	// underline pass.
+	title := titleStyle.Render(t.task.Name)
+	if isOverdue(t.task.Due) {
+		title += " " + overdueStyle.Render(fmt.Sprintf("[%s]", t.task.Due.Format("Jan 2")))
+	}
 
 	if selected {
 		line := fmt.Sprintf("%s %s", bar, title)
