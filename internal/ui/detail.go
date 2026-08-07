@@ -1,10 +1,12 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
@@ -132,6 +134,166 @@ func (m Model) completeSelectedSubtask() (Model, tea.Cmd) {
 	return m, completeSubtaskCmd(m.client, m.token, m.timelineID, item.task)
 }
 
+// fetchTimelineForDetailMsg carries the result of fetching a timeline for use
+// by the detail drawer's sub-task/note add flows. Distinct from add.go's
+// fetchTimelineMsg because that type's failure handling in model.go's
+// Update() is hardcoded to the main add bar (closeAdd/addErr) — routing
+// detail-drawer timeline fetches through it would incorrectly close the main
+// add bar and set the wrong error field.
+type fetchTimelineForDetailMsg struct {
+	id  string
+	err error
+}
+
+// fetchTimelineForDetailCmd returns a Cmd that fetches a fresh timeline off
+// the main goroutine for the detail drawer's write flows.
+func fetchTimelineForDetailCmd(client *rtm.Client, token string) tea.Cmd {
+	return func() tea.Msg {
+		id, err := client.GetTimeline(token)
+		return fetchTimelineForDetailMsg{id: id, err: err}
+	}
+}
+
+// openDetailAddSub activates the "add sub-task" input bar inside the detail
+// drawer.
+func (m Model) openDetailAddSub() (Model, tea.Cmd) {
+	m.detailAddingSub = true
+	m.detailErr = nil
+	m.subtaskInput.SetValue("")
+	if m.timelineID == "" {
+		return m, fetchTimelineForDetailCmd(m.client, m.token)
+	}
+	return m, nil
+}
+
+// closeDetailAddSub hides the "add sub-task" input bar.
+func (m Model) closeDetailAddSub() Model {
+	m.detailAddingSub = false
+	return m
+}
+
+// addSubtaskMsg carries the result of creating a sub-task and linking it to
+// its parent. These are two separate RTM calls, so createdButNotLinked
+// distinguishes "failed to create" from "created but failed to link".
+type addSubtaskMsg struct {
+	err                 error
+	createdButNotLinked bool
+}
+
+// addSubtaskCmd creates a new task via smart-add and links it to parent as a
+// sub-task, off the main goroutine.
+func addSubtaskCmd(client *rtm.Client, token, timeline string, parent rtm.Task, transformed string) tea.Cmd {
+	return func() tea.Msg {
+		created, err := client.AddTaskFull(token, timeline, transformed)
+		if err != nil {
+			return addSubtaskMsg{err: fmt.Errorf("create sub-task: %w", err)}
+		}
+		if err := client.SetParentTask(token, timeline, created.ListID, created.TaskseriesID, created.ID, parent.ID); err != nil {
+			return addSubtaskMsg{err: fmt.Errorf("sub-task created but not linked to parent: %w", err), createdButNotLinked: true}
+		}
+		return addSubtaskMsg{}
+	}
+}
+
+// submitDetailAddSub submits the sub-task input's current value, creating and
+// linking a new sub-task.
+func (m Model) submitDetailAddSub() (Model, tea.Cmd) {
+	raw := strings.TrimSpace(m.subtaskInput.Value())
+	if raw == "" {
+		return m.closeDetailAddSub(), nil
+	}
+	m.detailAddingSub = false
+	m.subtasksLoading = true
+	return m, tea.Batch(m.subtaskList.StartSpinner(),
+		addSubtaskCmd(m.client, m.token, m.timelineID, m.detailTask, transformForRTM(raw)))
+}
+
+// updateDetailAddSub routes keypresses while the "add sub-task" input bar is
+// open.
+func (m Model) updateDetailAddSub(msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		return m.submitDetailAddSub()
+	case "esc":
+		return m.closeDetailAddSub(), nil
+	default:
+		var cmd tea.Cmd
+		m.subtaskInput, cmd = m.subtaskInput.Update(msg)
+		return m, cmd
+	}
+}
+
+// newNoteInput builds a configured textinput for the "add note" bar. Notes
+// have no smart-add syntax, so this uses a plain textinput.Model rather than
+// SmartInput.
+func newNoteInput() textinput.Model {
+	ti := textinput.New()
+	ti.Prompt = "Note: "
+	ti.CharLimit = 1024
+	return ti
+}
+
+// openDetailAddNote activates the "add note" input bar inside the detail
+// drawer.
+func (m Model) openDetailAddNote() (Model, tea.Cmd) {
+	m.detailAddingNote = true
+	m.detailErr = nil
+	m.noteInput.SetValue("")
+	cmd := m.noteInput.Focus()
+	if m.timelineID == "" {
+		return m, tea.Batch(cmd, fetchTimelineForDetailCmd(m.client, m.token))
+	}
+	return m, cmd
+}
+
+// closeDetailAddNote hides the "add note" input bar.
+func (m Model) closeDetailAddNote() Model {
+	m.detailAddingNote = false
+	return m
+}
+
+// addNoteMsg carries the result of adding a note. text is the note body that
+// was submitted, so a successful add can be appended to m.detailTask.Notes
+// optimistically in model.go's Update() (RTM has no cheap single-task
+// refetch endpoint).
+type addNoteMsg struct {
+	text string
+	err  error
+}
+
+// addNoteCmd adds a note to task off the main goroutine.
+func addNoteCmd(client *rtm.Client, token, timeline string, task rtm.Task, text string) tea.Cmd {
+	return func() tea.Msg {
+		err := client.AddNote(token, timeline, task.ListID, task.TaskseriesID, task.ID, "", text)
+		return addNoteMsg{text: text, err: err}
+	}
+}
+
+// submitDetailAddNote submits the note input's current value.
+func (m Model) submitDetailAddNote() (Model, tea.Cmd) {
+	text := strings.TrimSpace(m.noteInput.Value())
+	if text == "" {
+		return m.closeDetailAddNote(), nil
+	}
+	m.detailAddingNote = false
+	return m, addNoteCmd(m.client, m.token, m.timelineID, m.detailTask, text)
+}
+
+// updateDetailAddNote routes keypresses while the "add note" input bar is
+// open.
+func (m Model) updateDetailAddNote(msg tea.KeyMsg) (Model, tea.Cmd) {
+	switch msg.String() {
+	case "enter":
+		return m.submitDetailAddNote()
+	case "esc":
+		return m.closeDetailAddNote(), nil
+	default:
+		var cmd tea.Cmd
+		m.noteInput, cmd = m.noteInput.Update(msg)
+		return m, cmd
+	}
+}
+
 // findSubtaskIndex returns the index of the item in items whose task matches
 // target by taskKey, or -1 if not found.
 func findSubtaskIndex(items []list.Item, target rtm.Task) int {
@@ -144,19 +306,29 @@ func findSubtaskIndex(items []list.Item, target rtm.Task) int {
 	return -1
 }
 
-// updateDetail routes keypresses while the full-screen detail view is open:
-// esc/q close the drawer, c completes the selected sub-task in place, and
-// everything else (arrow keys, page up/down, etc.) is forwarded to the
-// sub-task list widget for free navigation.
-//
-// Extension seam: add-sub-task and add-note handling (t/n) arrive in a later
-// milestone (M5) — not built here.
+// updateDetail routes keypresses while the full-screen detail view is open.
+// When the "add sub-task" or "add note" input bar is active, keys are routed
+// there first (mirroring how the top-level Update() in model.go checks
+// detailOpen before searching/adding). Otherwise: esc/q close the drawer, c
+// completes the selected sub-task in place, t opens the add-sub-task bar, n
+// opens the add-note bar, and everything else (arrow keys, page up/down,
+// etc.) is forwarded to the sub-task list widget for free navigation.
 func (m Model) updateDetail(msg tea.KeyMsg) (Model, tea.Cmd) {
+	if m.detailAddingSub {
+		return m.updateDetailAddSub(msg)
+	}
+	if m.detailAddingNote {
+		return m.updateDetailAddNote(msg)
+	}
 	switch msg.String() {
 	case "esc", "q":
 		return m.closeDetail(), nil
 	case "c":
 		return m.completeSelectedSubtask()
+	case "t":
+		return m.openDetailAddSub()
+	case "n":
+		return m.openDetailAddNote()
 	default:
 		var cmd tea.Cmd
 		m.subtaskList, cmd = m.subtaskList.Update(msg)
@@ -247,13 +419,17 @@ func (m Model) renderDetail() string {
 
 	sections := []string{header, "", fields, "", subtasks, "", notes}
 
+	if m.detailAddingSub {
+		sections = append(sections, "", addBarStyle.Render(m.subtaskInput.View()))
+	} else if m.detailAddingNote {
+		sections = append(sections, "", addBarStyle.Render(m.noteInput.View()))
+	}
+
 	if m.detailErr != nil {
 		sections = append(sections, "", addErrorStyle.Render("Error: "+m.detailErr.Error()))
 	}
 
-	// Hint fragments are joined so later milestones can append to this
-	// slice without restructuring the join.
-	hints := []string{"esc: close", "↑/↓: navigate", "c: complete"}
+	hints := []string{"esc: close", "↑/↓: navigate", "c: complete", "t: add sub-task", "n: add note"}
 	sections = append(sections, "", detailHintStyle.Render(strings.Join(hints, " • ")))
 
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)

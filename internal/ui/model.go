@@ -47,6 +47,11 @@ type Model struct {
 
 	subtaskList     list.Model
 	subtasksLoading bool
+
+	detailAddingSub  bool
+	detailAddingNote bool
+	subtaskInput     SmartInput
+	noteInput        textinput.Model
 }
 
 // NewModel creates a Model pre-loaded with tasks.
@@ -84,6 +89,8 @@ func NewModel(client *rtm.Client, token, filter, addPreset string, refreshInterv
 		searchInput:     newSearchInput(),
 		addInput:        NewSmartInput("Add: "),
 		subtaskList:     newSubtaskList(),
+		subtaskInput:    NewSmartInput("Sub-task: "),
+		noteInput:       newNoteInput(),
 	}
 }
 
@@ -218,6 +225,38 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		setCmd := m.subtaskList.SetItems(buildSubtaskItems(msg.subtasks))
 		return m, setCmd
+
+	case fetchTimelineForDetailMsg:
+		if msg.err != nil {
+			m.detailErr = msg.err
+			if m.detailAddingSub {
+				m = m.closeDetailAddSub()
+			}
+			if m.detailAddingNote {
+				m = m.closeDetailAddNote()
+			}
+			return m, nil
+		}
+		m.timelineID = msg.id
+		return m, nil
+
+	case addSubtaskMsg:
+		m.subtasksLoading = false
+		m.subtaskList.StopSpinner()
+		if msg.err != nil {
+			m.detailErr = msg.err
+			return m, nil
+		}
+		m.subtasksLoading = true
+		return m, tea.Batch(m.subtaskList.StartSpinner(), fetchSubtasksCmd(m.client, m.token, m.detailTask))
+
+	case addNoteMsg:
+		if msg.err != nil {
+			m.detailErr = msg.err
+			return m, nil
+		}
+		m.detailTask.Notes = append(m.detailTask.Notes, rtm.Note{Body: msg.text, Created: time.Now()})
+		return m, nil
 
 	case autoRefreshMsg:
 		cmds := []tea.Cmd{autoRefreshCmd(m.refreshInterval)}
