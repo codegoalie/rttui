@@ -27,6 +27,15 @@ type Task struct {
 	Priority     Priority
 	Tags         []string
 	ListID       string
+	Completed    bool
+	ParentTaskID string // empty string = top-level task, not a sub-task
+	Notes        []Note
+}
+
+// Note is a single note attached to a task.
+type Note struct {
+	ID, Title, Body   string
+	Created, Modified time.Time
 }
 
 // rtmTags handles the RTM API quirk where tags is either [] (no tags) or {"tag":[...]}
@@ -50,6 +59,84 @@ func (t *rtmTags) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// rtmNote is a single note as returned by the RTM API.
+type rtmNote struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Created  string `json:"created"`
+	Modified string `json:"modified"`
+	// Body's JSON key ("$t") is RTM's standard convention for an XML
+	// element's text content when represented as JSON, per third-party RTM
+	// client docs. This is NOT verified against a live API response yet —
+	// confirm the key the first time this app is pointed at a task with a
+	// real note (e.g. manual `go run` testing), and fix just this tag if
+	// it's wrong.
+	Body string `json:"$t"`
+}
+
+// rtmNotes handles the RTM API quirk where notes is either [] (no notes),
+// {"note": {...}} (a single note collapsed to a bare object), or
+// {"note": [...]} (multiple notes).
+type rtmNotes struct {
+	Note []rtmNote
+}
+
+func (n *rtmNotes) UnmarshalJSON(data []byte) error {
+	// empty array case: "notes": []
+	if len(data) > 0 && data[0] == '[' {
+		n.Note = nil
+		return nil
+	}
+	var obj struct {
+		Note json.RawMessage `json:"note"`
+	}
+	if err := json.Unmarshal(data, &obj); err != nil {
+		return err
+	}
+	if len(obj.Note) == 0 {
+		n.Note = nil
+		return nil
+	}
+	if obj.Note[0] == '[' {
+		var notes []rtmNote
+		if err := json.Unmarshal(obj.Note, &notes); err != nil {
+			return err
+		}
+		n.Note = notes
+		return nil
+	}
+	var note rtmNote
+	if err := json.Unmarshal(obj.Note, &note); err != nil {
+		return err
+	}
+	n.Note = []rtmNote{note}
+	return nil
+}
+
+// toNotes converts the raw RTM notes into the Note slice used by Task.
+func (n rtmNotes) toNotes() []Note {
+	var notes []Note
+	for _, rn := range n.Note {
+		note := Note{
+			ID:    rn.ID,
+			Title: rn.Title,
+			Body:  rn.Body,
+		}
+		if rn.Created != "" {
+			if created, err := time.Parse(time.RFC3339, rn.Created); err == nil {
+				note.Created = created
+			}
+		}
+		if rn.Modified != "" {
+			if modified, err := time.Parse(time.RFC3339, rn.Modified); err == nil {
+				note.Modified = modified
+			}
+		}
+		notes = append(notes, note)
+	}
+	return notes
+}
+
 // rtmResponse mirrors the JSON returned by rtm.tasks.getList.
 type rtmResponse struct {
 	Rsp struct {
@@ -58,11 +145,13 @@ type rtmResponse struct {
 			List []struct {
 				ID         string `json:"id"`
 				Taskseries []struct {
-					ID   string  `json:"id"`
-					Name string  `json:"name"`
-					URL  string  `json:"url"`
-					Tags rtmTags `json:"tags"`
-					Task []struct {
+					ID           string   `json:"id"`
+					Name         string   `json:"name"`
+					URL          string   `json:"url"`
+					Tags         rtmTags  `json:"tags"`
+					ParentTaskID string   `json:"parent_task_id"`
+					Notes        rtmNotes `json:"notes"`
+					Task         []struct {
 						ID        string `json:"id"`
 						Due       string `json:"due"`
 						Priority  string `json:"priority"`
@@ -88,21 +177,22 @@ func parsePriority(s string) Priority {
 	}
 }
 
-// parseTasks parses a raw RTM JSON response into a slice of Tasks.
-func parseTasks(data []byte) ([]Task, error) {
+// parseAllTasks parses a raw RTM JSON response into a slice of Tasks,
+// including completed tasks (deleted tasks are still always dropped).
+func parseAllTasks(data []byte) ([]Task, error) {
 	var resp rtmResponse
 	if err := json.Unmarshal(data, &resp); err != nil {
-		return nil, fmt.Errorf("parseTasks: %w", err)
+		return nil, fmt.Errorf("parseAllTasks: %w", err)
 	}
 	if resp.Rsp.Stat != "ok" {
-		return nil, fmt.Errorf("parseTasks: API stat=%q", resp.Rsp.Stat)
+		return nil, fmt.Errorf("parseAllTasks: API stat=%q", resp.Rsp.Stat)
 	}
 
 	var tasks []Task
 	for _, list := range resp.Rsp.Tasks.List {
 		for _, ts := range list.Taskseries {
 			for _, t := range ts.Task {
-				if t.Completed != "" || t.Deleted != "" {
+				if t.Deleted != "" {
 					continue
 				}
 				task := Task{
@@ -113,6 +203,9 @@ func parseTasks(data []byte) ([]Task, error) {
 					Priority:     parsePriority(t.Priority),
 					Tags:         ts.Tags.Tag,
 					ListID:       list.ID,
+					Completed:    t.Completed != "",
+					ParentTaskID: ts.ParentTaskID,
+					Notes:        ts.Notes.toNotes(),
 				}
 				if t.Due != "" {
 					if due, err := time.Parse(time.RFC3339, t.Due); err == nil {
@@ -125,6 +218,21 @@ func parseTasks(data []byte) ([]Task, error) {
 	}
 	SortTasks(tasks)
 	return tasks, nil
+}
+
+// filterMainListTasks excludes tasks that shouldn't appear in the main task list.
+// Sub-tasks (ParentTaskID != "") are intentionally NOT filtered here yet —
+// that's coming in a follow-up commit once the UI can show sub-tasks somewhere,
+// so they don't just vanish with no way to view them.
+func filterMainListTasks(all []Task) []Task {
+	var out []Task
+	for _, t := range all {
+		if t.Completed {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
 }
 
 // SortTasks sorts tasks in place using the standard display order:
@@ -190,5 +298,9 @@ func (c *Client) GetTasks(token, filter string) ([]Task, error) {
 	if err != nil {
 		return nil, err
 	}
-	return parseTasks(data)
+	all, err := parseAllTasks(data)
+	if err != nil {
+		return nil, err
+	}
+	return filterMainListTasks(all), nil
 }
