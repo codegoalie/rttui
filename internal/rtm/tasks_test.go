@@ -268,6 +268,25 @@ func TestParseAddTaskResponse(t *testing.T) {
 	})
 }
 
+func TestFilterSubtasksOf(t *testing.T) {
+	all := []Task{
+		{ID: "1", Name: "Child one", ParentTaskID: "parent-1"},
+		{ID: "2", Name: "Unrelated", ParentTaskID: "parent-2"},
+		{ID: "3", Name: "Top level", ParentTaskID: ""},
+		{ID: "4", Name: "Child two", ParentTaskID: "parent-1"},
+	}
+
+	got := filterSubtasksOf(all, "parent-1")
+
+	if len(got) != 2 {
+		t.Fatalf("expected 2 subtasks, got %d: %+v", len(got), got)
+	}
+	ids := map[string]bool{got[0].ID: true, got[1].ID: true}
+	if !ids["1"] || !ids["4"] {
+		t.Errorf("filterSubtasksOf returned wrong tasks: got %+v", got)
+	}
+}
+
 func TestFilterMainListTasks(t *testing.T) {
 	all := []Task{
 		{ID: "1", Name: "Active one", Completed: false},

@@ -154,3 +154,25 @@ func (c *Client) AddTaskFull(token, timeline, smartAddString string) (Task, erro
 	}
 	return parseAddTaskResponse(data)
 }
+
+// GetSubtasks fetches all sub-tasks of the given parent task. RTM has no
+// "children of task X" filter, so this fetches broadly via the isSubtask:true
+// search operator and filters client-side. Deliberately does not add a
+// status/completed filter, since completed sub-tasks must still be included
+// (the UI shows them struck through rather than hiding them).
+func (c *Client) GetSubtasks(token string, parent Task) ([]Task, error) {
+	data, err := c.Call("rtm.tasks.getList", map[string]string{
+		"auth_token": token,
+		"filter":     "isSubtask:true",
+	})
+	if err != nil {
+		return nil, err
+	}
+	all, err := parseAllTasks(data)
+	if err != nil {
+		return nil, err
+	}
+	subtasks := filterSubtasksOf(all, parent.ID)
+	SortTasks(subtasks)
+	return subtasks, nil
+}

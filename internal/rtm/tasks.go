@@ -285,6 +285,18 @@ func filterMainListTasks(all []Task) []Task {
 	return out
 }
 
+// filterSubtasksOf returns only the tasks in all whose ParentTaskID matches
+// parentID.
+func filterSubtasksOf(all []Task, parentID string) []Task {
+	var out []Task
+	for _, t := range all {
+		if t.ParentTaskID == parentID {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
 // SortTasks sorts tasks in place using the standard display order:
 // bucket (overdue, today, day-by-day, no due date) → priority → due → name → ID.
 func SortTasks(tasks []Task) {
