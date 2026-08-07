@@ -54,6 +54,65 @@ func (c *Client) CompleteTask(token, timeline, listID, taskseriesID, taskID stri
 	return nil
 }
 
+// AddNote adds a note to an existing task.
+func (c *Client) AddNote(token, timeline, listID, taskseriesID, taskID, title, text string) error {
+	data, err := c.Call("rtm.tasks.notes.add", map[string]string{
+		"auth_token":    token,
+		"timeline":      timeline,
+		"list_id":       listID,
+		"taskseries_id": taskseriesID,
+		"task_id":       taskID,
+		"note_title":    title,
+		"note_text":     text,
+	})
+	if err != nil {
+		return err
+	}
+	var resp struct {
+		Rsp struct {
+			Stat string `json:"stat"`
+		} `json:"rsp"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return fmt.Errorf("AddNote: %w", err)
+	}
+	if resp.Rsp.Stat != "ok" {
+		return fmt.Errorf("AddNote: API stat=%q", resp.Rsp.Stat)
+	}
+	return nil
+}
+
+// SetParentTask links an existing task to a parent task, or clears its
+// parent (making it top-level again) when parentTaskID is empty.
+func (c *Client) SetParentTask(token, timeline, listID, taskseriesID, taskID, parentTaskID string) error {
+	params := map[string]string{
+		"auth_token":    token,
+		"timeline":      timeline,
+		"list_id":       listID,
+		"taskseries_id": taskseriesID,
+		"task_id":       taskID,
+	}
+	if parentTaskID != "" {
+		params["parent_task_id"] = parentTaskID
+	}
+	data, err := c.Call("rtm.tasks.setParentTask", params)
+	if err != nil {
+		return err
+	}
+	var resp struct {
+		Rsp struct {
+			Stat string `json:"stat"`
+		} `json:"rsp"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return fmt.Errorf("SetParentTask: %w", err)
+	}
+	if resp.Rsp.Stat != "ok" {
+		return fmt.Errorf("SetParentTask: API stat=%q", resp.Rsp.Stat)
+	}
+	return nil
+}
+
 // AddTask adds a new task using RTM's Smart Add syntax (smart=1).
 func (c *Client) AddTask(token, timeline, smartAddString string) error {
 	data, err := c.Call("rtm.tasks.add", map[string]string{
