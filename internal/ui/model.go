@@ -40,6 +40,10 @@ type Model struct {
 
 	loading         bool
 	refreshInterval time.Duration
+
+	detailOpen bool
+	detailTask rtm.Task
+	detailErr  error
 }
 
 // NewModel creates a Model pre-loaded with tasks.
@@ -197,6 +201,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.list, cmd = m.list.Update(msg)
 			return m, cmd
 		}
+		if m.detailOpen {
+			return m.updateDetail(msg)
+		}
 		if m.searching {
 			return m.updateSearch(msg)
 		}
@@ -215,6 +222,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "r":
 			m.loading = true
 			return m, tea.Batch(m.list.StartSpinner(), fetchTasksCmd(m.client, m.token, m.currentFilter))
+		case "enter":
+			return m.openDetail()
 		}
 	}
 
@@ -225,6 +234,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the current state.
 func (m Model) View() tea.View {
+	if m.detailOpen {
+		v := tea.NewView(m.renderDetail())
+		v.AltScreen = true
+		return v
+	}
+
 	listView := m.list.View()
 
 	var content string

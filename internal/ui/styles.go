@@ -19,4 +19,9 @@ var (
 	headingStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#7aa2f7")). // tokyo night blue
 			Bold(true)
+
+	detailLabelStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#7aa2f7")).Bold(true) // tokyo night blue, field labels
+	detailNoteHeaderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#c0caf5")).Bold(true) // tokyo night bright foreground, note headers
+	detailNoteBodyStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#a9b1d6"))            // tokyo night muted foreground, note body text
+	detailHintStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("#565f89"))            // tokyo night comment/grey, dim hint line
 )
