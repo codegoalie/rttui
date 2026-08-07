@@ -164,19 +164,21 @@ type rtmResponse struct {
 	} `json:"rsp"`
 }
 
-// rtmAddResponse mirrors the JSON returned by rtm.tasks.add, whose shape
-// differs from rtmResponse: list, taskseries, and task are all bare objects
-// (not arrays, no "tasks" wrapper) since exactly one task is created.
+// rtmAddResponse mirrors the JSON returned by rtm.tasks.add. Confirmed via a
+// real live API call: list is a bare object (only one list is ever touched),
+// but taskseries and task inside it are JSON arrays (each with one element),
+// matching the same array-nesting pattern as rtmResponse just without the
+// "tasks" wrapper.
 type rtmAddResponse struct {
 	Rsp struct {
 		Stat string `json:"stat"`
 		List struct {
 			ID         string `json:"id"`
-			Taskseries struct {
+			Taskseries []struct {
 				ID   string `json:"id"`
 				Name string `json:"name"`
 				URL  string `json:"url"`
-				Task struct {
+				Task []struct {
 					ID       string `json:"id"`
 					Due      string `json:"due"`
 					Priority string `json:"priority"`
@@ -196,18 +198,26 @@ func parseAddTaskResponse(data []byte) (Task, error) {
 	if resp.Rsp.Stat != "ok" {
 		return Task{}, fmt.Errorf("parseAddTaskResponse: API stat=%q", resp.Rsp.Stat)
 	}
+	if len(resp.Rsp.List.Taskseries) == 0 {
+		return Task{}, fmt.Errorf("parseAddTaskResponse: empty taskseries in response")
+	}
 
-	ts := resp.Rsp.List.Taskseries
+	ts := resp.Rsp.List.Taskseries[0]
+	if len(ts.Task) == 0 {
+		return Task{}, fmt.Errorf("parseAddTaskResponse: empty task in response")
+	}
+	t := ts.Task[0]
+
 	task := Task{
-		ID:           ts.Task.ID,
+		ID:           t.ID,
 		TaskseriesID: ts.ID,
 		ListID:       resp.Rsp.List.ID,
 		Name:         ts.Name,
 		URL:          ts.URL,
-		Priority:     parsePriority(ts.Task.Priority),
+		Priority:     parsePriority(t.Priority),
 	}
-	if ts.Task.Due != "" {
-		if due, err := time.Parse(time.RFC3339, ts.Task.Due); err == nil {
+	if t.Due != "" {
+		if due, err := time.Parse(time.RFC3339, t.Due); err == nil {
 			task.Due = due
 		}
 	}

@@ -228,7 +228,7 @@ func TestParseAllTasks(t *testing.T) {
 
 func TestParseAddTaskResponse(t *testing.T) {
 	t.Run("no due date, no priority", func(t *testing.T) {
-		const addFixtureJSON = `{"rsp":{"stat":"ok","list":{"id":"list-1","taskseries":{"id":"ts-1","name":"New task","url":"","task":{"id":"task-1","due":"","priority":"N"}}}}}`
+		const addFixtureJSON = `{"rsp":{"stat":"ok","list":{"id":"list-1","taskseries":[{"id":"ts-1","name":"New task","url":"","task":[{"id":"task-1","due":"","priority":"N"}]}]}}}`
 
 		task, err := parseAddTaskResponse([]byte(addFixtureJSON))
 		if err != nil {
@@ -252,7 +252,7 @@ func TestParseAddTaskResponse(t *testing.T) {
 	})
 
 	t.Run("with due date and priority", func(t *testing.T) {
-		const addFixtureJSON = `{"rsp":{"stat":"ok","list":{"id":"list-2","taskseries":{"id":"ts-2","name":"Urgent task","url":"https://example.com/urgent","task":{"id":"task-2","due":"2026-03-20T12:00:00Z","priority":"1"}}}}}`
+		const addFixtureJSON = `{"rsp":{"stat":"ok","list":{"id":"list-2","taskseries":[{"id":"ts-2","name":"Urgent task","url":"https://example.com/urgent","task":[{"id":"task-2","due":"2026-03-20T12:00:00Z","priority":"1"}]}]}}}`
 
 		task, err := parseAddTaskResponse([]byte(addFixtureJSON))
 		if err != nil {
@@ -264,6 +264,30 @@ func TestParseAddTaskResponse(t *testing.T) {
 		}
 		if task.Priority != PriorityHigh {
 			t.Errorf("task.Priority = %v, want PriorityHigh", task.Priority)
+		}
+	})
+
+	t.Run("matches real API response shape", func(t *testing.T) {
+		const addFixtureJSON = `{"rsp":{"stat":"ok","transaction":{"id":"24561786771","undoable":"0"},"list":{"id":"740910","taskseries":[{"id":"617953200","created":"2026-08-07T19:17:43Z","modified":"2026-08-07T19:17:43Z","name":"rttui subtask verification RAWCHECK (safe to delete)","source":"api:21581d069204c2d63c14a2a346deff14","url":"","location_id":"","tags":[],"participants":[],"notes":[],"task":[{"id":"1221456778","due":"","has_due_time":"0","added":"2026-08-07T19:17:43Z","completed":"","deleted":"","priority":"N","postponed":"0","estimate":""}]}]}}}`
+
+		task, err := parseAddTaskResponse([]byte(addFixtureJSON))
+		if err != nil {
+			t.Fatalf("parseAddTaskResponse error: %v", err)
+		}
+		if task.ID != "1221456778" {
+			t.Errorf("task.ID = %q, want %q", task.ID, "1221456778")
+		}
+		if task.TaskseriesID != "617953200" {
+			t.Errorf("task.TaskseriesID = %q, want %q", task.TaskseriesID, "617953200")
+		}
+		if task.ListID != "740910" {
+			t.Errorf("task.ListID = %q, want %q", task.ListID, "740910")
+		}
+		if task.Name != "rttui subtask verification RAWCHECK (safe to delete)" {
+			t.Errorf("task.Name = %q, want %q", task.Name, "rttui subtask verification RAWCHECK (safe to delete)")
+		}
+		if task.Priority != PriorityNone {
+			t.Errorf("task.Priority = %v, want PriorityNone", task.Priority)
 		}
 	})
 }
