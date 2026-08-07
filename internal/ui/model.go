@@ -35,7 +35,7 @@ type Model struct {
 	addErr     error
 	timelineID string
 
-	completeErr     error
+	completeErr      error
 	pendingCompletes map[string]rtm.Task
 
 	loading         bool
@@ -44,6 +44,9 @@ type Model struct {
 	detailOpen bool
 	detailTask rtm.Task
 	detailErr  error
+
+	subtaskList     list.Model
+	subtasksLoading bool
 }
 
 // NewModel creates a Model pre-loaded with tasks.
@@ -80,6 +83,7 @@ func NewModel(client *rtm.Client, token, filter, addPreset string, refreshInterv
 		list:            l,
 		searchInput:     newSearchInput(),
 		addInput:        NewSmartInput("Add: "),
+		subtaskList:     newSubtaskList(),
 	}
 }
 
@@ -138,6 +142,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.timelineID = msg.timelineID
 		return m, completeTaskCmd(m.client, m.token, m.timelineID, msg.task)
 
+	case fetchTimelineAndCompleteSubtaskMsg:
+		if msg.err != nil {
+			m.detailErr = msg.err
+			return m, nil
+		}
+		m.timelineID = msg.timelineID
+		return m, completeSubtaskCmd(m.client, m.token, m.timelineID, msg.task)
+
 	case addTaskMsg:
 		m.loading = false
 		m.list.StopSpinner()
@@ -161,6 +173,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.stopSpinnerIfIdle()
 		return m, nil
 
+	case completeSubtaskMsg:
+		if msg.err != nil {
+			m.detailErr = msg.err
+			return m, nil
+		}
+		idx := findSubtaskIndex(m.subtaskList.Items(), msg.task)
+		if idx == -1 {
+			return m, nil
+		}
+		updated := msg.task
+		updated.Completed = true
+		setCmd := m.subtaskList.SetItem(idx, TaskItem{task: updated})
+		return m, setCmd
+
 	case fetchTasksMsg:
 		m.loading = false
 		if msg.err != nil {
@@ -183,6 +209,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.stopSpinnerIfIdle()
 		return m, setCmd
 
+	case fetchSubtasksMsg:
+		m.subtasksLoading = false
+		m.subtaskList.StopSpinner()
+		if msg.err != nil {
+			m.detailErr = msg.err
+			return m, nil
+		}
+		setCmd := m.subtaskList.SetItems(buildSubtaskItems(msg.subtasks))
+		return m, setCmd
+
 	case autoRefreshMsg:
 		cmds := []tea.Cmd{autoRefreshCmd(m.refreshInterval)}
 		if !m.loading {
@@ -190,7 +226,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, m.list.StartSpinner(), fetchTasksCmd(m.client, m.token, m.currentFilter))
 		}
 		return m, tea.Batch(cmds...)
-
 
 	case tea.KeyMsg:
 		if msg.String() == "ctrl+c" {

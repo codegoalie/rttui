@@ -94,3 +94,22 @@ func renderTaskLine(t rtm.Task, selected bool, width int, strikethrough bool, sh
 	}
 	return fmt.Sprintf("%s %s", bar, title)
 }
+
+// subtaskDelegate renders sub-tasks the same as taskDelegate, except
+// completed sub-tasks are struck through and never show the overdue badge.
+type subtaskDelegate struct{}
+
+func (d subtaskDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
+	t, ok := item.(TaskItem)
+	if !ok {
+		return
+	}
+	selected := index == m.Index()
+	fmt.Fprint(w, renderTaskLine(t.task, selected, m.Width(), t.task.Completed, !t.task.Completed))
+}
+
+func (d subtaskDelegate) Height() int { return 1 }
+
+func (d subtaskDelegate) Spacing() int { return 0 }
+
+func (d subtaskDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return nil }

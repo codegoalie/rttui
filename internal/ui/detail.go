@@ -4,16 +4,59 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
 	"git.codegoalie.com/rttui/internal/rtm"
 )
 
+const subtaskListHeight = 8
+
+// newSubtaskList builds the list widget used to display a task's sub-tasks
+// inside the detail drawer: no title/help/status-bar/pagination chrome, no
+// fuzzy filtering, and quit keybindings disabled since it's embedded inside
+// the detail view rather than being the top-level list.
+func newSubtaskList() list.Model {
+	l := list.New(nil, subtaskDelegate{}, 0, 0)
+	l.SetShowTitle(false)
+	l.SetShowHelp(false)
+	l.SetShowStatusBar(false)
+	l.SetShowPagination(false)
+	l.SetFilteringEnabled(false)
+	l.DisableQuitKeybindings()
+	return l
+}
+
+// fetchSubtasksMsg carries the result of an async sub-task fetch.
+type fetchSubtasksMsg struct {
+	subtasks []rtm.Task
+	err      error
+}
+
+// fetchSubtasksCmd returns a Cmd that fetches a task's sub-tasks off the main
+// goroutine.
+func fetchSubtasksCmd(client *rtm.Client, token string, parent rtm.Task) tea.Cmd {
+	return func() tea.Msg {
+		subtasks, err := client.GetSubtasks(token, parent)
+		return fetchSubtasksMsg{subtasks: subtasks, err: err}
+	}
+}
+
+// buildSubtaskItems converts tasks into list items for the sub-task list.
+// Pure function — no heading grouping (unlike buildItems), just one TaskItem
+// per task, since RTM already returns them sorted (SortTasks in GetSubtasks).
+func buildSubtaskItems(tasks []rtm.Task) []list.Item {
+	items := make([]list.Item, len(tasks))
+	for i, t := range tasks {
+		items[i] = TaskItem{task: t}
+	}
+	return items
+}
+
 // openDetail opens the full-screen task detail view for the currently
 // selected task. If the cursor is on a HeadingItem rather than a task, this
-// is a no-op. No network call is made this milestone — the detail view
-// renders from the already-loaded task.
+// is a no-op. Kicks off an async fetch of the task's sub-tasks.
 func (m Model) openDetail() (Model, tea.Cmd) {
 	item, ok := m.list.SelectedItem().(TaskItem)
 	if !ok {
@@ -26,7 +69,11 @@ func (m Model) openDetail() (Model, tea.Cmd) {
 	// screen with a footer bar), so it's resized off-screen rather than
 	// shrunk by footerHeight().
 	m.list.SetSize(m.windowWidth, 0)
-	return m, nil
+
+	m.subtasksLoading = true
+	m.subtaskList.SetSize(m.windowWidth, subtaskListHeight)
+	m.subtaskList.SetItems(nil)
+	return m, tea.Batch(m.subtaskList.StartSpinner(), fetchSubtasksCmd(m.client, m.token, item.task))
 }
 
 // closeDetail closes the full-screen task detail view and restores the list
@@ -38,16 +85,82 @@ func (m Model) closeDetail() Model {
 	return m
 }
 
-// updateDetail routes keypresses while the full-screen detail view is open.
+// completeSubtaskMsg carries the result of an async sub-task completion.
+type completeSubtaskMsg struct {
+	task rtm.Task
+	err  error
+}
+
+// completeSubtaskCmd returns a Cmd that marks a sub-task complete off the
+// main goroutine.
+func completeSubtaskCmd(client *rtm.Client, token, timeline string, task rtm.Task) tea.Cmd {
+	return func() tea.Msg {
+		err := client.CompleteTask(token, timeline, task.ListID, task.TaskseriesID, task.ID)
+		return completeSubtaskMsg{task: task, err: err}
+	}
+}
+
+// fetchTimelineAndCompleteSubtaskMsg carries the result of fetching a
+// timeline before completing a sub-task (when none was cached yet).
+type fetchTimelineAndCompleteSubtaskMsg struct {
+	timelineID string
+	task       rtm.Task
+	err        error
+}
+
+// fetchTimelineAndCompleteSubtaskCmd returns a Cmd that fetches a fresh
+// timeline off the main goroutine, to be followed by completeSubtaskCmd.
+func fetchTimelineAndCompleteSubtaskCmd(client *rtm.Client, token string, task rtm.Task) tea.Cmd {
+	return func() tea.Msg {
+		id, err := client.GetTimeline(token)
+		return fetchTimelineAndCompleteSubtaskMsg{timelineID: id, task: task, err: err}
+	}
+}
+
+// completeSelectedSubtask marks the currently-selected sub-task complete in
+// place (see completeSubtaskMsg handling in model.go) rather than removing it
+// from the list, unlike the main list's completeSelected.
+func (m Model) completeSelectedSubtask() (Model, tea.Cmd) {
+	item, ok := m.subtaskList.SelectedItem().(TaskItem)
+	if !ok || item.task.Completed {
+		return m, nil
+	}
+	m.detailErr = nil
+	if m.timelineID == "" {
+		return m, fetchTimelineAndCompleteSubtaskCmd(m.client, m.token, item.task)
+	}
+	return m, completeSubtaskCmd(m.client, m.token, m.timelineID, item.task)
+}
+
+// findSubtaskIndex returns the index of the item in items whose task matches
+// target by taskKey, or -1 if not found.
+func findSubtaskIndex(items []list.Item, target rtm.Task) int {
+	key := taskKey(target)
+	for i, it := range items {
+		if t, ok := it.(TaskItem); ok && taskKey(t.task) == key {
+			return i
+		}
+	}
+	return -1
+}
+
+// updateDetail routes keypresses while the full-screen detail view is open:
+// esc/q close the drawer, c completes the selected sub-task in place, and
+// everything else (arrow keys, page up/down, etc.) is forwarded to the
+// sub-task list widget for free navigation.
 //
-// Extension seam: sub-task navigation, add-sub-task, and add-note handling
-// (t/n/arrow keys) arrive in later milestones (M4/M5) — not built here.
+// Extension seam: add-sub-task and add-note handling (t/n) arrive in a later
+// milestone (M5) — not built here.
 func (m Model) updateDetail(msg tea.KeyMsg) (Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "q":
 		return m.closeDetail(), nil
+	case "c":
+		return m.completeSelectedSubtask()
 	default:
-		return m, nil
+		var cmd tea.Cmd
+		m.subtaskList, cmd = m.subtaskList.Update(msg)
+		return m, cmd
 	}
 }
 
@@ -108,6 +221,17 @@ func (m Model) renderDetail() string {
 		detailLabelStyle.Render("URL:")+" "+urlText,
 	)
 
+	subtaskLines := []string{headingStyle.Render("── Sub-tasks ──")}
+	switch {
+	case len(m.subtaskList.Items()) > 0:
+		subtaskLines = append(subtaskLines, m.subtaskList.View())
+	case m.subtasksLoading:
+		subtaskLines = append(subtaskLines, "Loading…")
+	default:
+		subtaskLines = append(subtaskLines, "No sub-tasks yet")
+	}
+	subtasks := lipgloss.JoinVertical(lipgloss.Left, subtaskLines...)
+
 	notesLines := []string{headingStyle.Render("── Notes ──")}
 	if len(task.Notes) == 0 {
 		notesLines = append(notesLines, "No notes yet")
@@ -121,7 +245,7 @@ func (m Model) renderDetail() string {
 	}
 	notes := lipgloss.JoinVertical(lipgloss.Left, notesLines...)
 
-	sections := []string{header, "", fields, "", notes}
+	sections := []string{header, "", fields, "", subtasks, "", notes}
 
 	if m.detailErr != nil {
 		sections = append(sections, "", addErrorStyle.Render("Error: "+m.detailErr.Error()))
@@ -129,7 +253,7 @@ func (m Model) renderDetail() string {
 
 	// Hint fragments are joined so later milestones can append to this
 	// slice without restructuring the join.
-	hints := []string{"esc: close"}
+	hints := []string{"esc: close", "↑/↓: navigate", "c: complete"}
 	sections = append(sections, "", detailHintStyle.Render(strings.Join(hints, " • ")))
 
 	return lipgloss.JoinVertical(lipgloss.Left, sections...)

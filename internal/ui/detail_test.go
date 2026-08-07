@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"charm.land/bubbles/v2/list"
+
 	"git.codegoalie.com/rttui/internal/rtm"
 )
 
@@ -100,6 +102,86 @@ func TestFormatNoteHeader(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := formatNoteHeader(tt.note); got != tt.want {
 				t.Errorf("formatNoteHeader(%+v) = %q, want %q", tt.note, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBuildSubtaskItems(t *testing.T) {
+	t.Run("nil input returns empty slice", func(t *testing.T) {
+		items := buildSubtaskItems(nil)
+		if len(items) != 0 {
+			t.Errorf("buildSubtaskItems(nil) = %v, want empty", items)
+		}
+	})
+
+	t.Run("empty input returns empty slice", func(t *testing.T) {
+		items := buildSubtaskItems([]rtm.Task{})
+		if len(items) != 0 {
+			t.Errorf("buildSubtaskItems([]) = %v, want empty", items)
+		}
+	})
+
+	t.Run("one TaskItem per task in order", func(t *testing.T) {
+		tasks := []rtm.Task{
+			{ID: "1", TaskseriesID: "ts1", Name: "First", Completed: false},
+			{ID: "2", TaskseriesID: "ts2", Name: "Second", Completed: true},
+			{ID: "3", TaskseriesID: "ts3", Name: "Third", Completed: false},
+		}
+
+		items := buildSubtaskItems(tasks)
+
+		if len(items) != len(tasks) {
+			t.Fatalf("buildSubtaskItems returned %d items, want %d", len(items), len(tasks))
+		}
+		for i, want := range tasks {
+			ti, ok := items[i].(TaskItem)
+			if !ok {
+				t.Fatalf("items[%d] is not a TaskItem: %#v", i, items[i])
+			}
+			if ti.task.ID != want.ID {
+				t.Errorf("items[%d].task.ID = %q, want %q", i, ti.task.ID, want.ID)
+			}
+			if ti.task.Completed != want.Completed {
+				t.Errorf("items[%d].task.Completed = %v, want %v", i, ti.task.Completed, want.Completed)
+			}
+		}
+	})
+}
+
+func TestFindSubtaskIndex(t *testing.T) {
+	items := []list.Item{
+		TaskItem{task: rtm.Task{ID: "1", TaskseriesID: "ts1"}},
+		TaskItem{task: rtm.Task{ID: "2", TaskseriesID: "ts2"}},
+		TaskItem{task: rtm.Task{ID: "3", TaskseriesID: "ts3"}},
+	}
+
+	tests := []struct {
+		name   string
+		target rtm.Task
+		want   int
+	}{
+		{
+			name:   "found first item",
+			target: rtm.Task{ID: "1", TaskseriesID: "ts1"},
+			want:   0,
+		},
+		{
+			name:   "found second item",
+			target: rtm.Task{ID: "2", TaskseriesID: "ts2"},
+			want:   1,
+		},
+		{
+			name:   "not found returns -1",
+			target: rtm.Task{ID: "99", TaskseriesID: "ts99"},
+			want:   -1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := findSubtaskIndex(items, tt.target); got != tt.want {
+				t.Errorf("findSubtaskIndex(items, %+v) = %d, want %d", tt.target, got, tt.want)
 			}
 		})
 	}
