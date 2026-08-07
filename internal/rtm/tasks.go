@@ -164,6 +164,56 @@ type rtmResponse struct {
 	} `json:"rsp"`
 }
 
+// rtmAddResponse mirrors the JSON returned by rtm.tasks.add, whose shape
+// differs from rtmResponse: list, taskseries, and task are all bare objects
+// (not arrays, no "tasks" wrapper) since exactly one task is created.
+type rtmAddResponse struct {
+	Rsp struct {
+		Stat string `json:"stat"`
+		List struct {
+			ID         string `json:"id"`
+			Taskseries struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+				URL  string `json:"url"`
+				Task struct {
+					ID       string `json:"id"`
+					Due      string `json:"due"`
+					Priority string `json:"priority"`
+				} `json:"task"`
+			} `json:"taskseries"`
+		} `json:"list"`
+	} `json:"rsp"`
+}
+
+// parseAddTaskResponse parses the response body of rtm.tasks.add into the
+// newly-created Task.
+func parseAddTaskResponse(data []byte) (Task, error) {
+	var resp rtmAddResponse
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return Task{}, fmt.Errorf("parseAddTaskResponse: %w", err)
+	}
+	if resp.Rsp.Stat != "ok" {
+		return Task{}, fmt.Errorf("parseAddTaskResponse: API stat=%q", resp.Rsp.Stat)
+	}
+
+	ts := resp.Rsp.List.Taskseries
+	task := Task{
+		ID:           ts.Task.ID,
+		TaskseriesID: ts.ID,
+		ListID:       resp.Rsp.List.ID,
+		Name:         ts.Name,
+		URL:          ts.URL,
+		Priority:     parsePriority(ts.Task.Priority),
+	}
+	if ts.Task.Due != "" {
+		if due, err := time.Parse(time.RFC3339, ts.Task.Due); err == nil {
+			task.Due = due
+		}
+	}
+	return task, nil
+}
+
 func parsePriority(s string) Priority {
 	switch s {
 	case "1":

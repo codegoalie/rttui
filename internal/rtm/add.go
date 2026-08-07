@@ -137,3 +137,20 @@ func (c *Client) AddTask(token, timeline, smartAddString string) error {
 	}
 	return nil
 }
+
+// AddTaskFull adds a new task using RTM's Smart Add syntax (smart=1), like
+// AddTask, but parses and returns the created task's identifiers instead of
+// discarding the response body — callers need these to immediately follow up
+// with e.g. SetParentTask.
+func (c *Client) AddTaskFull(token, timeline, smartAddString string) (Task, error) {
+	data, err := c.Call("rtm.tasks.add", map[string]string{
+		"auth_token": token,
+		"timeline":   timeline,
+		"name":       smartAddString,
+		"parse":      "1",
+	})
+	if err != nil {
+		return Task{}, err
+	}
+	return parseAddTaskResponse(data)
+}

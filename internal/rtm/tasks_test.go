@@ -226,6 +226,48 @@ func TestParseAllTasks(t *testing.T) {
 	}
 }
 
+func TestParseAddTaskResponse(t *testing.T) {
+	t.Run("no due date, no priority", func(t *testing.T) {
+		const addFixtureJSON = `{"rsp":{"stat":"ok","list":{"id":"list-1","taskseries":{"id":"ts-1","name":"New task","url":"","task":{"id":"task-1","due":"","priority":"N"}}}}}`
+
+		task, err := parseAddTaskResponse([]byte(addFixtureJSON))
+		if err != nil {
+			t.Fatalf("parseAddTaskResponse error: %v", err)
+		}
+		if task.ID != "task-1" {
+			t.Errorf("task.ID = %q, want %q", task.ID, "task-1")
+		}
+		if task.TaskseriesID != "ts-1" {
+			t.Errorf("task.TaskseriesID = %q, want %q", task.TaskseriesID, "ts-1")
+		}
+		if task.ListID != "list-1" {
+			t.Errorf("task.ListID = %q, want %q", task.ListID, "list-1")
+		}
+		if task.Name != "New task" {
+			t.Errorf("task.Name = %q, want %q", task.Name, "New task")
+		}
+		if task.Priority != PriorityNone {
+			t.Errorf("task.Priority = %v, want PriorityNone", task.Priority)
+		}
+	})
+
+	t.Run("with due date and priority", func(t *testing.T) {
+		const addFixtureJSON = `{"rsp":{"stat":"ok","list":{"id":"list-2","taskseries":{"id":"ts-2","name":"Urgent task","url":"https://example.com/urgent","task":{"id":"task-2","due":"2026-03-20T12:00:00Z","priority":"1"}}}}}`
+
+		task, err := parseAddTaskResponse([]byte(addFixtureJSON))
+		if err != nil {
+			t.Fatalf("parseAddTaskResponse error: %v", err)
+		}
+		wantDue := time.Date(2026, 3, 20, 12, 0, 0, 0, time.UTC)
+		if !task.Due.Equal(wantDue) {
+			t.Errorf("task.Due = %v, want %v", task.Due, wantDue)
+		}
+		if task.Priority != PriorityHigh {
+			t.Errorf("task.Priority = %v, want PriorityHigh", task.Priority)
+		}
+	})
+}
+
 func TestFilterMainListTasks(t *testing.T) {
 	all := []Task{
 		{ID: "1", Name: "Active one", Completed: false},
