@@ -292,6 +292,7 @@ func TestFilterMainListTasks(t *testing.T) {
 		{ID: "1", Name: "Active one", Completed: false},
 		{ID: "2", Name: "Completed one", Completed: true},
 		{ID: "3", Name: "Active two", Completed: false},
+		{ID: "4", Name: "Sub-task", ParentTaskID: "parent-1"},
 	}
 
 	got := filterMainListTasks(all)
@@ -302,6 +303,9 @@ func TestFilterMainListTasks(t *testing.T) {
 	for _, task := range got {
 		if task.ID == "2" {
 			t.Errorf("filterMainListTasks retained completed task %q", task.ID)
+		}
+		if task.ID == "4" {
+			t.Errorf("filterMainListTasks retained sub-task %q", task.ID)
 		}
 	}
 	if got[0].ID != "1" || got[1].ID != "3" {

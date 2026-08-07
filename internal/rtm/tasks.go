@@ -271,13 +271,12 @@ func parseAllTasks(data []byte) ([]Task, error) {
 }
 
 // filterMainListTasks excludes tasks that shouldn't appear in the main task list.
-// Sub-tasks (ParentTaskID != "") are intentionally NOT filtered here yet —
-// that's coming in a follow-up commit once the UI can show sub-tasks somewhere,
-// so they don't just vanish with no way to view them.
+// Completed tasks and sub-tasks are excluded since they're only shown within
+// their parent task's detail drawer.
 func filterMainListTasks(all []Task) []Task {
 	var out []Task
 	for _, t := range all {
-		if t.Completed {
+		if t.Completed || t.ParentTaskID != "" {
 			continue
 		}
 		out = append(out, t)
